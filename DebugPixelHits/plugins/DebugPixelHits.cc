@@ -82,6 +82,13 @@ class DebugPixelHits : public edm::one::EDAnalyzer<edm::one::SharedResources> {
         float track_global_phi_, track_global_z_, track_local_x_, track_local_y_, track_exp_sizeX_, track_exp_sizeY_, track_exp_charge_;
         float hit_global_phi_, hit_global_z_, hit_local_x_, hit_local_y_, hit_sizeX_, hit_sizeY_, hit_firstpixel_x_, hit_firstpixel_y_, hit_chi2_, hit_charge_, hitInRandomWindowDistance_;
 
+        int cluster_center_x_, cluster_center_y_;
+        const static int nHit = 147;//21*7
+        
+        int cluster_charge_in_hits_[nHit];
+
+        int cluster_hits_x_[nHit], cluster_hits_y_[nHit];
+        
         int debug_;
 };
 
@@ -158,7 +165,16 @@ DebugPixelHits::DebugPixelHits(const edm::ParameterSet& iConfig):
     tree_->Branch("maybeBadROC", &maybeBadROC_, "maybeBadROC/I");
     tree_->Branch("trackHasHit", &trackHasHit_, "trackHasHit/I");
     tree_->Branch("trackHasLostHit", &trackHasLostHit_, "trackHasLostHit/I");
+    
+    
 
+    tree_->Branch("cluster_center_x", &cluster_center_x_, "cluster_center_x/I");
+    tree_->Branch("cluster_center_x", &cluster_center_x_, "cluster_center_x/I");
+//     tree_->Branch("cluster_hits_x", cluster_hits_x_, "cluster_hits_x/I");  
+//     tree_->Branch("cluster_hits_y", cluster_hits_y_, "cluster_hits_y/I");
+    tree_->Branch("cluster_charge_in_hits", &cluster_charge_in_hits_, "cluster_charge_in_hits[147]/I");
+
+    
 }
 
 
@@ -182,6 +198,10 @@ DebugPixelHits::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
     iEvent.getByToken(vertices_, vertices);
     npv_ = vertices->size();
 
+    
+    for (int n=0; n<nHit ;++n) cluster_charge_in_hits_[n]=0;
+        
+        
     // read input
     Handle<View<reco::Candidate> > pairs;
     iEvent.getByToken(pairs_, pairs);
@@ -349,6 +369,8 @@ DebugPixelHits::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
                 hit_global_z_   = hitgpos.z();
                 hit_local_x_ = hitpos.x();
                 hit_local_y_ = hitpos.y();
+                cluster_center_x_ = (int) round(clustref->x());
+                cluster_center_y_ = (int) round(clustref->y());
                 hit_firstpixel_x_ = clustref->minPixelRow();
                 hit_firstpixel_y_ = clustref->minPixelCol();
                 hit_chi2_ = hitAndChi2.first;
@@ -357,17 +379,48 @@ DebugPixelHits::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
                 hit_sizeY_ = clustref->sizeY();
                 hitFound_ = true;
                 hitOnTrack_ = (std::find(PXB1Clusters.begin(), PXB1Clusters.end(), clustref.get()) != PXB1Clusters.end());
+               
+                
+//                 for (const auto &P : clustref->pixels()) {
+//                     if(abs(P.x-cluster_center_x_) < 4 &&  abs(P.y-cluster_center_y_) < 11)
+//                     cluster_charge_in_hits_[(P.x-cluster_center_x_) + 7*(P.y-cluster_center_y_) + ((int) 147/2)] = P.adc;
+//                     
+//                     printf("      casella = %d \n", (P.x-cluster_center_x_) + 7*(P.y-cluster_center_y_) + ((int) 147/2));
+//                     printf("      pixel at x = %3d - %3d  \t  y = %3d - %3d \t adc: %5d\n", P.x, cluster_center_x_, P.y, cluster_center_y_, P.adc);
+//                     printf("      adc1 = %3d  \t ad 2 = %3d \n", cluster_charge_in_hits_[(P.x-cluster_center_x_) + 7*(P.y-cluster_center_y_) + ((int) 147/2)], P.adc);
+// 
+//                 }
+                for (const auto & all_hit : allhits) {
+                    const auto * pixAllhit = dynamic_cast<const SiPixelRecHit*>(&*all_hit);    if (!pixAllhit) throw cms::Exception("CorruptData", "Valid PXB1 hit that is not a SiPixelRecHit");
+                    auto all_clustref = pixAllhit->cluster();                                  if (all_clustref.isNull()) throw cms::Exception("CorruptData", "Valid PXB1 SiPixelRecHit with null cluster ref");
+                    for (const auto &P : all_clustref->pixels()) {
+                        if(abs(P.x-cluster_center_x_) < 4 &&  abs(P.y-cluster_center_y_) < 11)
+                        cluster_charge_in_hits_[(P.x-cluster_center_x_) + 7*(P.y-cluster_center_y_) + ((int) 147/2)] = P.adc;
+                        
+                        printf("      casella = %d \n", (P.x-cluster_center_x_) + 7*(P.y-cluster_center_y_) + ((int) 147/2));
+                        printf("      pixel at x = %3d - %3d  \t  y = %3d - %3d \t adc: %5d\n", P.x, cluster_center_x_, P.y, cluster_center_y_, P.adc);
+                        printf("      adc1 = %3d  \t ad 2 = %3d \n", cluster_charge_in_hits_[(P.x-cluster_center_x_) + 7*(P.y-cluster_center_y_) + ((int) 147/2)], P.adc);
+
+                    }
+                }
+                
+                    
                 if (!found) { tree_->Fill(); found = true; }
                 if (debug_) printf("             rechit x = %+6.3f +- %5.3f   y = %+6.3f +- %5.3f     dx = %+6.3f +- %5.3f   dy = %+6.3f +- %5.3f   chi2 = %7.2f    ontrack = %c  ",  
                                     hitpos.x(), std::sqrt(hiterr.xx()), hitpos.y(), std::sqrt(hiterr.yy()),
                                     hitpos.x()-tkpos.x(), std::sqrt(hiterr.xx()+tkerr.xx()), hitpos.y()-tkpos.y(), std::sqrt(hiterr.yy()+tkerr.yy()), hitAndChi2.first,
                                     (hitOnTrack_ ? 'Y' : 'n'));
                 if (debug_) printf(" size: %3d (%2d x %2d), raw charge %8d   corr charge %8.1f\n", clustref->size(), clustref->sizeX(), clustref->sizeY(), clustref->charge(), clustref->charge()*chargeCorr);
-                if (debug_) {
-                    for (const auto &P : clustref->pixels()) {
-                        printf("      pixel at x = %3d y = %3d \n", P.x, P.y);
-                    }
-                }
+//                 if (debug_) {
+//                     for (const auto &P : clustref->pixels()) {
+//                         printf("      pixel at x = %3d y = %3d \n", P.x, P.y);
+//                         cluster_hits_x_.push_back(P.x-cluster_center_x_);
+//                         cluster_hits_y_.push_back(P.y-cluster_center_y_);
+//                         if(abs(P.x-cluster_center_x_) < 4 &&  abs(P.y-cluster_center_y_) < 11)
+//                         cluster_charge_in_hits_[(P.x-cluster_center_x_) + 7*(P.y-cluster_center_y_) + ((int) 147/2)] = P.adc;
+                        
+//                     }
+//                 }
             }
             if (!found) {
                 hitFound_ = false;
