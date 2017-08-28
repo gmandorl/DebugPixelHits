@@ -10,7 +10,16 @@ process.MessageLogger.suppressError = cms.untracked.vstring("patTriggerFull")
 process.source = cms.Source("PoolSource", 
     fileNames = cms.untracked.vstring(
         #'file:debug_Zmm_lostHits.root',
-	'/store/express/Run2017B/ExpressPhysics/FEVT/Express-v1/000/297/218/00000/1CDCFB44-DD55-E711-8D01-02163E01450A.root',
+        'root://xrootd-cms.infn.it//store/data/Run2017B/SingleMuon/RAW-RECO/ZMu-PromptReco-v1/000/297/031/00000/307D7C74-0E56-E711-85FD-02163E01A1BD.root',
+        'root://xrootd-cms.infn.it//store/data/Run2017B/SingleMuon/RAW-RECO/ZMu-PromptReco-v1/000/297/046/00000/1077D486-DD56-E711-825A-02163E01A3F5.root',
+'root://xrootd-cms.infn.it//store/data/Run2017B/SingleMuon/RAW-RECO/ZMu-PromptReco-v1/000/297/046/00000/3ABA4153-5A56-E711-9177-02163E01A488.root',
+'root://xrootd-cms.infn.it//store/data/Run2017B/SingleMuon/RAW-RECO/ZMu-PromptReco-v1/000/297/046/00000/76E58FFB-7956-E711-A5D4-02163E01A279.root',
+'root://xrootd-cms.infn.it//store/data/Run2017B/SingleMuon/RAW-RECO/ZMu-PromptReco-v1/000/297/046/00000/7EFED543-1B5B-E711-A355-02163E0118F3.root',
+'root://xrootd-cms.infn.it//store/data/Run2017B/SingleMuon/RAW-RECO/ZMu-PromptReco-v1/000/297/046/00000/C69BEAD5-4856-E711-A2D3-02163E0140F3.root',
+'root://xrootd-cms.infn.it//store/data/Run2017B/SingleMuon/RAW-RECO/ZMu-PromptReco-v1/000/297/046/00000/CCF370A9-D359-E711-8A56-02163E013475.root',
+'root://xrootd-cms.infn.it//store/data/Run2017B/SingleMuon/RAW-RECO/ZMu-PromptReco-v1/000/297/047/00000/4C30A60D-4F56-E711-A660-02163E013502.root',
+'root://xrootd-cms.infn.it//store/data/Run2017B/SingleMuon/RAW-RECO/ZMu-PromptReco-v1/000/297/047/00000/EE9B2B82-3356-E711-95BD-02163E0133E4.root',
+	#'/store/express/Run2017B/ExpressPhysics/FEVT/Express-v1/000/297/218/00000/1CDCFB44-DD55-E711-8D01-02163E01450A.root',
 	#'/store/express/Run2017B/ExpressPhysics/FEVT/Express-v1/000/297/218/00000/242FEC1C-D855-E711-A559-02163E01373C.root',
 	#'/store/express/Run2017B/ExpressPhysics/FEVT/Express-v1/000/297/218/00000/3410C6CA-DC55-E711-A2F9-02163E012B04.root',
 	#'/store/express/Run2017B/ExpressPhysics/FEVT/Express-v1/000/297/218/00000/3CEFF073-DB55-E711-9DE5-02163E011CB0.root',
@@ -23,7 +32,7 @@ process.source = cms.Source("PoolSource",
 #import FWCore.PythonUtilities.LumiList as LumiList
 #process.source.lumisToProcess = LumiList.LumiList(filename = JSON).getVLuminosityBlockRange()
 
-process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(1000) )    
+process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(100) )    
 
 process.load('Configuration.StandardSequences.GeometryRecoDB_cff')
 process.load('Configuration.StandardSequences.MagneticField_cff')
@@ -83,6 +92,7 @@ process.clusterInfo = cms.EDAnalyzer("DebugPixelHits",
         Propagator = cms.string('SmartPropagatorAnyRKOpposite'),
         #Propagators
         PropagatorOpposite = cms.string("RungeKuttaTrackerPropagatorOpposite"),
+        PropagatorAlong = cms.string("RungeKuttaTrackerPropagator"),
         Chi2MeasurementEstimator = cms.string("HitCollectorForDebug"),
         #Error rescaling
         rescaleError = cms.double(1),
@@ -112,7 +122,7 @@ process.out = cms.OutputModule("PoolOutputModule",
 #process.end = cms.EndPath(process.out)
 
 # this below probably not needed
-process.TFileService = cms.Service("TFileService", fileName = cms.string("debugHits.root"))
+process.TFileService = cms.Service("TFileService", fileName = cms.string("debugHits_Zmumu_1.root"))
 
 if False:
     del process.clusterInfo.badComponentsFile
