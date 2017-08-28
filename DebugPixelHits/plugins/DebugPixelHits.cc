@@ -97,7 +97,7 @@ class DebugPixelHits : public edm::one::EDAnalyzer<edm::one::SharedResources> {
         int detid_, roc_, hitFound_, hitOnTrack_, detIsActive_, maybeBadROC_, trackHasHit_, trackHasLostHit_, hitInRandomWindow_;
         float track_global_phi_, track_global_z_, track_local_x_, track_local_y_, track_exp_sizeX_, track_exp_sizeY_, track_exp_charge_;
         float hit_global_phi_, hit_global_z_, hit_local_x_, hit_local_y_, hit_sizeX_, hit_sizeY_, hit_firstpixel_x_, hit_firstpixel_y_, hit_chi2_, hit_charge_, hitInRandomWindowDistance_;
-
+        
         int cluster_center_x_, cluster_center_y_;
         const static int nHit = 147;//21*7
         
@@ -134,7 +134,9 @@ class DebugPixelHits : public edm::one::EDAnalyzer<edm::one::SharedResources> {
         std::vector<VarsOfTrack> VarsTrack_PXB2;
         std::vector<VarsOfTrack> VarsTrack_wPV;
         
-        float trackfromPV_localPixel_x_,trackfromPV_localPixel_y_, track_localPixel_x_,track_localPixel_y_;
+        float trackfromPV_localPixel_x_,trackfromPV_localPixel_y_, track_localPixel_x_,track_localPixel_y_; 
+        float hit_localPixel_x_,hit_localPixel_y_, cluster_localPixel_x_,cluster_localPixel_y_;
+        float trackfromPV_local_Dx_,trackfromPV_local_Dy_,track_local_Dx_,track_local_Dy_;
         
         
 };
@@ -256,9 +258,17 @@ DebugPixelHits::DebugPixelHits(const edm::ParameterSet& iConfig):
     tree_->Branch("trackfromPV_localPixel_y", &trackfromPV_localPixel_y_, "trackfromPV_localPixel_y/F");
     tree_->Branch("track_localPixel_x", &track_localPixel_x_, "track_localPixel_x/F");
     tree_->Branch("track_localPixel_y", &track_localPixel_y_, "track_localPixel_y/F");
+    tree_->Branch("hit_localPixel_x", &hit_localPixel_x_, "hit_localPixel_x/F");
+    tree_->Branch("hit_localPixel_y", &hit_localPixel_y_, "hit_localPixel_y/F");
     
-
+    tree_->Branch("cluster_localPixel_x", &cluster_localPixel_x_, "cluster_localPixel_x/F");
+    tree_->Branch("cluster_localPixel_y", &cluster_localPixel_y_, "cluster_localPixel_y/F");
+    tree_->Branch("trackfromPV_local_Dy", &trackfromPV_local_Dy_, "trackfromPV_local_Dy/F");
+    tree_->Branch("trackfromPV_local_Dx", &trackfromPV_local_Dx_, "trackfromPV_local_Dx/F");
+    tree_->Branch("track_local_Dx", &track_local_Dx_, "track_local_Dx/F");
+    tree_->Branch("track_local_Dy", &track_local_Dy_, "track_local_Dy/F");
     
+   
 }
 
 
@@ -421,6 +431,8 @@ DebugPixelHits::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
             track_exp_charge_ = std::sqrt(1.08f + std::pow(mutk.pz()/mutk.pt(),2)) * 26000;
             theBadComponents.fetch(iEvent.id().run(), iEvent.id().luminosityBlock(),  detAndState.first->geographicalId().rawId(), badROCs);
             maybeBadROC_ = false;
+            track_local_Dx_=std::sqrt(tkerr.xx());
+            track_local_Dy_=std::sqrt(tkerr.yy());
             
                         
 //                 posizione locale
@@ -444,7 +456,8 @@ DebugPixelHits::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
             //for (const auto & hit : rechits) {
             std::vector<std::pair<float, TrackingRecHit::ConstRecHitPointer>> rechitsAndChi2 ;
             for (const auto & hitAndChi2 : mdet.fastMeasurements(detAndState.second, tsosPXB2, *thePropagatorOpposite, *theEstimator)) {
-                if (hitAndChi2.recHit()->isValid()) rechitsAndChi2.emplace_back(hitAndChi2.estimate(), hitAndChi2.recHit());
+                if (hitAndChi2.recHit()->isValid()) rechitsAndChi2.emplace_back(hitAndChi2.estimate(), hitAndChi2.recHit());                
+                if (hitAndChi2.recHit()->isValid()) std::cout << "rechitsAndChi2 FILLING"<<std::endl;
             } 
             const auto & allhits = mdet.recHits(detAndState.second);
             if (rechitsAndChi2.empty()) {
@@ -472,6 +485,7 @@ DebugPixelHits::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
             trackFromLayer2.set_chargeCorr(chargeCorr);
             trackFromLayer2.set_track_global_phi(track_global_phi_);trackFromLayer2.set_track_global_z(track_global_z_);
             trackFromLayer2.set_track_local_x(track_local_x_);trackFromLayer2.set_track_local_y(track_local_y_);
+            trackFromLayer2.set_track_local_Dx(track_local_Dx_);trackFromLayer2.set_track_local_Dy(track_local_Dy_);
             trackFromLayer2.set_track_localPixel_x(track_localPixel_x_);trackFromLayer2.set_track_localPixel_y(track_localPixel_y_);
             trackFromLayer2.set_track_exp_sizeX(track_exp_sizeX_);trackFromLayer2.set_track_exp_sizeY(track_exp_sizeY_);
             trackFromLayer2.set_track_exp_charge(track_exp_charge_);        
@@ -492,6 +506,16 @@ DebugPixelHits::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
                 hit_global_z_   = hitgpos.z();
                 hit_local_x_ = hitpos.x();
                 hit_local_y_ = hitpos.y();
+                
+                //                 posizione locale
+                LocalPoint xytrack(hit_local_x_, hit_local_y_);
+                hit_localPixel_x_=(dynamic_cast<const PixelGeomDetUnit*>(detAndState.first))->specificTopology().pixel(xytrack).first;
+                hit_localPixel_y_=(dynamic_cast<const PixelGeomDetUnit*>(detAndState.first))->specificTopology().pixel(xytrack).second;
+                
+                cluster_localPixel_x_=clustref->x();
+                cluster_localPixel_y_=clustref->y();
+                
+                
                 cluster_center_x_ = (int) round(clustref->x());
                 cluster_center_y_ = (int) round(clustref->y());
                 hit_firstpixel_x_ = clustref->minPixelRow();
@@ -632,6 +656,8 @@ DebugPixelHits::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
                 
                 trackFromLayer2.set_hit_global_phi(hit_global_phi_);trackFromLayer2.set_hit_global_z(hit_global_z_);
                 trackFromLayer2.set_hit_local_x(hit_local_x_);trackFromLayer2.set_hit_local_y(hit_local_y_);
+                trackFromLayer2.set_hit_localPixel_x(hit_localPixel_x_);trackFromLayer2.set_hit_localPixel_y(hit_localPixel_y_);
+                trackFromLayer2.set_cluster_localPixel_x(cluster_localPixel_x_);trackFromLayer2.set_cluster_localPixel_y(cluster_localPixel_y_);
                 trackFromLayer2.set_cluster_center_x(cluster_center_x_);trackFromLayer2.set_cluster_center_y(cluster_center_y_);
                 trackFromLayer2.set_hit_firstpixel_x(hit_firstpixel_x_);trackFromLayer2.set_hit_firstpixel_y(hit_firstpixel_y_);
                 trackFromLayer2.set_hit_chi2(hit_chi2_); trackFromLayer2.set_hit_charge(hit_charge_);
@@ -763,6 +789,8 @@ DebugPixelHits::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
             trackFromPV.set_track_global_z(trackfromPV_global_z_);
             trackFromPV.set_track_local_x(track_local_x2);
             trackFromPV.set_track_local_y(track_local_y2);
+            trackFromPV.set_track_local_Dx(std::sqrt(tkerr.xx()));
+            trackFromPV.set_track_local_Dy(std::sqrt(tkerr.yy()));
             trackFromPV.set_track_localPixel_x(trackfromPV_localPixel_x_);trackFromPV.set_track_localPixel_y(trackfromPV_localPixel_y_);
             trackFromPV.set_alpha(acos(trackfromPV_global_z_/std::hypot(trackfromPV_global_x_, trackfromPV_global_z_))); 
             trackFromPV.set_beta(acos(trackfromPV_global_z_/std::hypot(trackfromPV_global_y_, trackfromPV_global_z_))); 
@@ -779,6 +807,7 @@ DebugPixelHits::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
         detid_=VarsTrack_PXB2[i].detid; detIsActive_=VarsTrack_PXB2[i].detIsActive; roc_=VarsTrack_PXB2[i].roc; 
         track_global_phi_=VarsTrack_PXB2[i].track_global_phi; track_global_z_=VarsTrack_PXB2[i].track_global_z;
         track_local_x_=VarsTrack_PXB2[i].track_local_x; track_local_y_=VarsTrack_PXB2[i].track_local_y;
+        track_local_Dx_=VarsTrack_PXB2[i].track_local_Dx; track_local_Dy_=VarsTrack_PXB2[i].track_local_Dy;
         track_localPixel_x_=VarsTrack_PXB2[i].track_localPixel_x; track_localPixel_y_=VarsTrack_PXB2[i].track_localPixel_y;
         track_exp_sizeX_=VarsTrack_PXB2[i].track_exp_sizeX; track_exp_sizeY_=VarsTrack_PXB2[i].track_exp_sizeY; track_exp_charge_=VarsTrack_PXB2[i].track_exp_charge;		
         hit_global_phi_=VarsTrack_PXB2[i].hit_global_phi; hit_global_z_=VarsTrack_PXB2[i].hit_global_z;
@@ -788,6 +817,8 @@ DebugPixelHits::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
         hit_chi2_=VarsTrack_PXB2[i].hit_chi2; hit_charge_=VarsTrack_PXB2[i].hit_charge;
         hit_sizeX_=VarsTrack_PXB2[i].hit_sizeX; hit_sizeY_=VarsTrack_PXB2[i].hit_sizeY; hitFound_=VarsTrack_PXB2[i].hitFound; hitOnTrack_=VarsTrack_PXB2[i].hitOnTrack;
         hitInRandomWindow_=VarsTrack_PXB2[i].hitInRandomWindow;  hitInRandomWindowDistance_=VarsTrack_PXB2[i].hitInRandomWindowDistance;
+        hit_localPixel_x_=VarsTrack_PXB2[i].hit_localPixel_x;hit_localPixel_y_=VarsTrack_PXB2[i].hit_localPixel_y;
+        cluster_localPixel_x_=VarsTrack_PXB2[i].cluster_localPixel_x;cluster_localPixel_y_=VarsTrack_PXB2[i].cluster_localPixel_y;
         source_det_=VarsTrack_PXB2[i].source_det; source_layer_=VarsTrack_PXB2[i].source_layer;
         maybeBadROC_=VarsTrack_PXB2[i].maybeBadROC; trackHasHit_=VarsTrack_PXB2[i].trackHasHit; trackHasLostHit_=VarsTrack_PXB2[i].trackHasLostHit; 
         track_alpha_=VarsTrack_PXB2[i].alpha; track_beta_=VarsTrack_PXB2[i].beta;
@@ -838,6 +869,7 @@ DebugPixelHits::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
                 
                 trackfromPV_global_phi_=VarsTrack_wPV[min_dist_index].track_global_phi; trackfromPV_global_z_=VarsTrack_wPV[min_dist_index].track_global_z;
                 trackfromPV_local_x_=VarsTrack_wPV[min_dist_index].track_local_x; trackfromPV_local_y_=VarsTrack_wPV[min_dist_index].track_local_y;
+                trackfromPV_local_Dx_=VarsTrack_wPV[min_dist_index].track_local_Dx; trackfromPV_local_Dy_=VarsTrack_wPV[min_dist_index].track_local_Dy;
                 trackfromPV_localPixel_x_=VarsTrack_wPV[min_dist_index].track_localPixel_x; trackfromPV_localPixel_y_=VarsTrack_wPV[min_dist_index].track_localPixel_y;
                 trackfromPV_detid_=VarsTrack_wPV[min_dist_index].detid; trackfromPV_roc_=VarsTrack_wPV[min_dist_index].roc; trackfromPV_detIsActive_=VarsTrack_wPV[min_dist_index].detIsActive;
                 trackfromPV_alpha_=VarsTrack_wPV[min_dist_index].alpha; trackfromPV_beta_=VarsTrack_wPV[min_dist_index].beta;
