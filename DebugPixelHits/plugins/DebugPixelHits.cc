@@ -103,6 +103,10 @@ class DebugPixelHits : public edm::one::EDAnalyzer<edm::one::SharedResources> {
         
         int cluster_charge_in_hits_[nHit];
         int cluster_column_ON_[nHit];
+        
+        int cluster_chargeBroken_in_hits_[nHit];
+        int cluster_columnBroken_ON_[nHit];
+        
         int cluster_x_inModule_[nHit];
         int cluster_y_inModule_[nHit];
 
@@ -228,6 +232,8 @@ DebugPixelHits::DebugPixelHits(const edm::ParameterSet& iConfig):
     //tree_->Branch("cluster_hits_y", cluster_hits_y_, "cluster_hits_y/I");
     tree_->Branch("cluster_charge_in_hits", &cluster_charge_in_hits_, "cluster_charge_in_hits[147]/I");
     tree_->Branch("cluster_column_ON", &cluster_column_ON_, "cluster_column_ON[147]/I");
+    tree_->Branch("cluster_chargeBroken_in_hits", &cluster_chargeBroken_in_hits_, "cluster_chargeBroken_in_hits[147]/I");
+    tree_->Branch("cluster_columnBroken_ON", &cluster_columnBroken_ON_, "cluster_columnBroken_ON[147]/I");
 //     tree_->Branch("cluster_x_inModule", &cluster_x_inModule_, "cluster_x_inModule[147]/I");
 //     tree_->Branch("cluster_y_inModule", &cluster_y_inModule_, "cluster_y_inModule[147]/I");
         
@@ -547,8 +553,41 @@ DebugPixelHits::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
                 
                 for (int n=0; n<nHit ;++n) cluster_charge_in_hits_[n]=0;
                 for (int n=0; n<nHit ;++n) cluster_column_ON_[n]=0;
+                for (int n=0; n<nHit ;++n) cluster_chargeBroken_in_hits_[n]=0;
+                for (int n=0; n<nHit ;++n) cluster_columnBroken_ON_[n]=0;
 //                 for (int n=0; n<nHit ;++n) cluster_x_inModule_[n]=0;
 //                 for (int n=0; n<nHit ;++n) cluster_y_inModule_[n]=0;
+                
+                
+                std::vector<int> cluster_double_columns;
+                
+                for (const auto &P : clustref->pixels()) { 
+                    
+                    if(abs(P.x-cluster_center_x_) < 4 &&  abs(P.y-cluster_center_y_) < 11 && P.adc>0)
+                    {
+                        float double_column=P.y/2*1000+P.x/80;
+                        std::cout<<P.x<<" "<<P.y<<" "<<double_column<<std::endl;
+                        if ( std::find(cluster_double_columns.begin(), cluster_double_columns.end(), double_column) == cluster_double_columns.end() ){
+                            std::cout<<P.x<<" "<<P.y<<" "<<double_column<< "  if not in vec already " <<std::endl;
+                            cluster_double_columns.push_back(double_column);
+                            
+                        }
+                            
+                    }
+                    
+                }
+                
+                for (unsigned int ss=0; ss<cluster_double_columns.size(); ++ss) std::cout<<cluster_double_columns[ss]<< "col in columns"<<std::endl;
+                
+                
+                
+                int column_to_remove=-1;
+                if (cluster_double_columns.size()>1) {
+                    column_to_remove= std::rand() % cluster_double_columns.size(); 
+                    std::cout<<column_to_remove<< "  column to remove " <<std::endl;
+                    
+                }
+                
                 
                 std::cout<< "All hits"<<std::endl; 
                 for (const auto & all_hit : allhits) {
@@ -615,6 +654,18 @@ DebugPixelHits::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
                             printf("      casella status = %d \n", (x_size) + 7*(c-cluster_center_y_) + ((int) 147/2));
                             if ((x_size+cluster_center_x_)<80) cluster_column_ON_[(x_size) + 7*(c-cluster_center_y_) + ((int) 147/2)]=column1_status_[c];
                             if ((x_size+cluster_center_x_)>=80) cluster_column_ON_[(x_size) + 7*(c-cluster_center_y_) + ((int) 147/2)]=column2_status_[c];
+                            
+                            
+                            cluster_columnBroken_ON_[(x_size) + 7*(c-cluster_center_y_) + ((int) 147/2)]=cluster_column_ON_[(x_size) + 7*(c-cluster_center_y_) + ((int) 147/2)];
+                            
+                            if (column_to_remove>=0){
+                                if (((int)(c)/2)==(cluster_double_columns[column_to_remove]/1000) && ((x_size+cluster_center_x_)/80)==(cluster_double_columns[column_to_remove]%1000)) 
+                                    cluster_columnBroken_ON_[(x_size) + 7*(c-cluster_center_y_) + ((int) 147/2)]=0;
+                                
+                            }
+                            
+                            
+                            //riempire status
                         }
                     }
                 }
@@ -637,7 +688,16 @@ DebugPixelHits::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
                         
                         if(abs(P.x-cluster_center_x_) < 4 &&  abs(P.y-cluster_center_y_) < 11)
                         {
-                         cluster_charge_in_hits_[(P.x-cluster_center_x_) + 7*(P.y-cluster_center_y_) + ((int) 147/2)] = P.adc;                                                        
+                         cluster_charge_in_hits_[(P.x-cluster_center_x_) + 7*(P.y-cluster_center_y_) + ((int) 147/2)] = P.adc;
+                         cluster_chargeBroken_in_hits_[(P.x-cluster_center_x_) + 7*(P.y-cluster_center_y_) + ((int) 147/2)] = P.adc;
+                         
+                         if (column_to_remove>=0){
+                             if ((P.y/2)==(cluster_double_columns[column_to_remove]/1000) && (P.x/80)==(cluster_double_columns[column_to_remove]%1000)) 
+                                cluster_chargeBroken_in_hits_[(P.x-cluster_center_x_) + 7*(P.y-cluster_center_y_) + ((int) 147/2)] = 0; 
+                             
+                        }
+                         
+                        
 //                          cluster_x_inModule_[(P.x-cluster_center_x_) + 7*(P.y-cluster_center_y_) + ((int) 147/2)] = P.x;
 //                          cluster_y_inModule_[(P.x-cluster_center_x_) + 7*(P.y-cluster_center_y_) + ((int) 147/2)] = P.y;
                         printf("      casella = %d \n", (P.x-cluster_center_x_) + 7*(P.y-cluster_center_y_) + ((int) 147/2));
@@ -666,6 +726,8 @@ DebugPixelHits::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
                 trackFromLayer2.set_hitInRandomWindow(hitInRandomWindow_); trackFromLayer2.set_hitInRandomWindowDistance(hitInRandomWindowDistance_);
                 trackFromLayer2.set_cluster_charge_in_hits(cluster_charge_in_hits_);
                 trackFromLayer2.set_cluster_col_status(cluster_column_ON_);
+                trackFromLayer2.set_cluster_chargeBroken_in_hits(cluster_chargeBroken_in_hits_);
+                trackFromLayer2.set_cluster_colBroken_status(cluster_columnBroken_ON_);
                 trackFromLayer2.set_column1_has_hit(column1_has_hit_);
                 trackFromLayer2.set_column1_status(column1_status_);       
                 trackFromLayer2.set_column2_has_hit(column2_has_hit_);
@@ -826,6 +888,8 @@ DebugPixelHits::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 //             std::cout<<VarsTrack_PXB2[i].cluster_charge_in_hits[k]<<std::endl;
             cluster_charge_in_hits_[k]=VarsTrack_PXB2[i].cluster_charge_in_hits[k];
             cluster_column_ON_[k]=VarsTrack_PXB2[i].cluster_col_status[k];  
+            cluster_chargeBroken_in_hits_[k]=VarsTrack_PXB2[i].cluster_chargeBroken_in_hits[k];
+            cluster_columnBroken_ON_[k]=VarsTrack_PXB2[i].cluster_colBroken_status[k];  
 //             cluster_x_inModule_[k]=VarsTrack_PXB2[i].cluster_xs[k];
 //             cluster_y_inModule_[k]=VarsTrack_PXB2[i].cluster_ys[k];
         }

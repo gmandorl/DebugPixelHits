@@ -29,6 +29,8 @@ class VarsOfTrack {
         float alpha, beta;        
         int cluster_charge_in_hits[147];
         int cluster_col_status[147];
+        int cluster_chargeBroken_in_hits[147];
+        int cluster_colBroken_status[147];
         
         bool column1_has_hit[416];
         bool column1_status[416];        
@@ -84,6 +86,8 @@ class VarsOfTrack {
         void set_beta(float);        
         void set_cluster_charge_in_hits(int[147] );
         void set_cluster_col_status(int[147] );
+        void set_cluster_chargeBroken_in_hits(int[147] );
+        void set_cluster_colBroken_status(int[147] );
         
         void set_column1_has_hit(bool[416]);
         void set_column1_status(bool[416]);        
@@ -145,6 +149,8 @@ inline void VarsOfTrack::set_alpha(float a){alpha=a;}
 inline void VarsOfTrack::set_beta(float a){beta=a;}
 inline void VarsOfTrack::set_cluster_charge_in_hits(int a[147]){for(unsigned int i=0; i<147; i++){cluster_charge_in_hits[i]=a[i];}}
 inline void VarsOfTrack::set_cluster_col_status(int a[147]){for(unsigned int i=0; i<147; i++){cluster_col_status[i]=a[i];}}
+inline void VarsOfTrack::set_cluster_chargeBroken_in_hits(int a[147]){for(unsigned int i=0; i<147; i++){cluster_chargeBroken_in_hits[i]=a[i];}}
+inline void VarsOfTrack::set_cluster_colBroken_status(int a[147]){for(unsigned int i=0; i<147; i++){cluster_colBroken_status[i]=a[i];}}
 
 inline void VarsOfTrack::set_column1_has_hit(bool a[416]){for(unsigned int i=0; i<416; i++){column1_has_hit[i]=a[i];}};
 inline void VarsOfTrack::set_column1_status(bool a[416]){for(unsigned int i=0; i<416; i++){column1_status[i]=a[i];}};        
