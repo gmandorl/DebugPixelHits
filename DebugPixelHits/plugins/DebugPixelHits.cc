@@ -142,6 +142,8 @@ class DebugPixelHits : public edm::one::EDAnalyzer<edm::one::SharedResources> {
         float hit_localPixel_x_,hit_localPixel_y_, cluster_localPixel_x_,cluster_localPixel_y_;
         float trackfromPV_local_Dx_,trackfromPV_local_Dy_,track_local_Dx_,track_local_Dy_;
         
+        bool broken_cluster_ = false;
+        
         
 };
 
@@ -274,6 +276,7 @@ DebugPixelHits::DebugPixelHits(const edm::ParameterSet& iConfig):
     tree_->Branch("track_local_Dx", &track_local_Dx_, "track_local_Dx/F");
     tree_->Branch("track_local_Dy", &track_local_Dy_, "track_local_Dy/F");
     
+    tree_->Branch("broken_cluster", &broken_cluster_, "broken_cluster/O");
    
 }
 
@@ -522,8 +525,8 @@ DebugPixelHits::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
                 cluster_localPixel_y_=clustref->y();
                 
                 
-                cluster_center_x_ = (int) round(clustref->x());
-                cluster_center_y_ = (int) round(clustref->y());
+                cluster_center_x_ = (int) round(track_localPixel_x_/*clustref->x()*/);
+                cluster_center_y_ = (int) round(track_localPixel_y_/*clustref->y()*/);
                 hit_firstpixel_x_ = clustref->minPixelRow();
                 hit_firstpixel_y_ = clustref->minPixelCol();
                 hit_chi2_ = hitAndChi2.first;
@@ -645,7 +648,11 @@ DebugPixelHits::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
                 
                 
                 for (unsigned int c=0; c< module_y; c++){
-                if(abs(c-cluster_center_y_)<11) {
+                    
+//                     std::cout<<c<<" "<<cluster_center_y_<<std::endl;
+//                     std::cout<<abs((int)c-cluster_center_y_)<<std::endl;
+                if(abs((int)c-cluster_center_y_)<11) {
+//                     std::cout<<c<<" "<<cluster_center_y_<<std::endl;
                     std::cout <<" has hit: " <<column1_has_hit_[c] << " status :"  << column1_status_[c]<<" "<<c<<std::endl; 
                     std::cout <<" has hit: " <<column2_has_hit_[c] << " status :"  << column2_status_[c]<<" "<<c<<std::endl; 
                     for (int x_size=-3; x_size<4; x_size++) 
@@ -893,6 +900,8 @@ DebugPixelHits::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 //             cluster_x_inModule_[k]=VarsTrack_PXB2[i].cluster_xs[k];
 //             cluster_y_inModule_[k]=VarsTrack_PXB2[i].cluster_ys[k];
         }
+        
+        broken_cluster_=!(std::equal(cluster_charge_in_hits_, cluster_charge_in_hits_+147, cluster_chargeBroken_in_hits_)); 
         
        
         for (unsigned int k=0; k< 416; k++)
