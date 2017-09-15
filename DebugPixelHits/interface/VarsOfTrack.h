@@ -14,6 +14,7 @@ class VarsOfTrack {
         float track_localPixel_x,track_localPixel_y;
         float hit_localPixel_x,hit_localPixel_y;
         float cluster_localPixel_x,cluster_localPixel_y;
+        float brokenCluster_localPixel_x,brokenCluster_localPixel_y;
         float track_exp_sizeX, track_exp_sizeY, track_exp_charge;        
         float hit_global_phi, hit_global_z;
         float hit_local_x, hit_local_y;
@@ -58,6 +59,8 @@ class VarsOfTrack {
         void set_hit_localPixel_y(float);
         void set_cluster_localPixel_x(float);
         void set_cluster_localPixel_y(float);
+        void set_brokenCluster_localPixel_x(float);
+        void set_brokenCluster_localPixel_y(float);
         void set_track_exp_sizeX(float); 
         void set_track_exp_sizeY(float); 
         void set_track_exp_charge(float);        
@@ -121,6 +124,8 @@ inline void VarsOfTrack::set_hit_localPixel_x(float a){hit_localPixel_x=a;}
 inline void VarsOfTrack::set_hit_localPixel_y(float a){hit_localPixel_y=a;}
 inline void VarsOfTrack::set_cluster_localPixel_x(float a){cluster_localPixel_x=a;}
 inline void VarsOfTrack::set_cluster_localPixel_y(float a){cluster_localPixel_y=a;}
+inline void VarsOfTrack::set_brokenCluster_localPixel_x(float a){brokenCluster_localPixel_x=a;}
+inline void VarsOfTrack::set_brokenCluster_localPixel_y(float a){brokenCluster_localPixel_y=a;}
 inline void VarsOfTrack::set_track_exp_sizeX(float a){track_exp_sizeX=a;} 
 inline void VarsOfTrack::set_track_exp_sizeY(float a){track_exp_sizeY=a;} 
 inline void VarsOfTrack::set_track_exp_charge(float a){track_exp_charge=a;}        

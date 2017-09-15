@@ -143,6 +143,12 @@ class DebugPixelHits : public edm::one::EDAnalyzer<edm::one::SharedResources> {
         float trackfromPV_local_Dx_,trackfromPV_local_Dy_,track_local_Dx_,track_local_Dy_;
         
         bool broken_cluster_ = false;
+        float brokenCluster_localPixel_x_=-1;
+        float brokenCluster_localPixel_y_=-1;
+        
+        
+        
+//         SiPixelRecHit hit_broken_cluster;
         
         
 };
@@ -277,6 +283,8 @@ DebugPixelHits::DebugPixelHits(const edm::ParameterSet& iConfig):
     tree_->Branch("track_local_Dy", &track_local_Dy_, "track_local_Dy/F");
     
     tree_->Branch("broken_cluster", &broken_cluster_, "broken_cluster/O");
+    tree_->Branch("brokenCluster_localPixel_x", &brokenCluster_localPixel_x_, "brokenCluster_localPixel_x/F");
+    tree_->Branch("brokenCluster_localPixel_y", &brokenCluster_localPixel_y_, "brokenCluster_localPixel_y/F");
    
 }
 
@@ -717,7 +725,111 @@ DebugPixelHits::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
                     }
                     
                     
-                }                
+                }
+                
+                
+                                //qui riempire un sipixelrecHit con le hit del cluster piu vicino 
+                SiPixelCluster hit_broken_cluster;
+                SiPixelCluster hit_broken_cluster2;
+                
+                for (const auto & rec_hit : rechitsAndChi2) {
+                     auto & all_hit =rec_hit.second;
+                     const auto * pixAllhit = dynamic_cast<const SiPixelRecHit*>(&*all_hit);    if (!pixAllhit) throw cms::Exception("CorruptData", "Valid PXB1 hit that is not a SiPixelRecHit");
+                     auto all_clustref = pixAllhit->cluster();                                  if (all_clustref.isNull()) throw cms::Exception("CorruptData", "Valid PXB1 SiPixelRecHit with null cluster ref");  
+                     
+                     for (const auto &P : all_clustref->pixels()) { 
+                     if(abs(P.x-cluster_center_x_) < 4 &&  abs(P.y-cluster_center_y_) < 11 )
+                        {
+                            printf("      pixel at x = %3d - %3d  \t  y = %3d - %3d \t adc: %5d\n", P.x, cluster_center_x_, P.y, cluster_center_y_, P.adc);
+                            std::cout << " col size " <<(int) cluster_double_columns.size()  << " " << column_to_remove;
+                            
+                            if (column_to_remove>=0){
+                                if (column_to_remove==0 || column_to_remove == (int) (cluster_double_columns.size()-1)){
+                                    
+                                    if((P.y/2)!=(cluster_double_columns[column_to_remove]/1000)){
+                                        
+                                    std::cout << " one cluster " << P.x << " " << P.y << std::endl;
+                                    SiPixelCluster::PixelPos pos(P.x, P.y);
+                                    hit_broken_cluster.add(pos, P.adc);
+                                        
+                                    }
+                                    
+                                }
+                                else{
+                                    
+                                    if ((P.y/2)<(cluster_double_columns[column_to_remove]/1000)){
+                                        
+                                        std::cout << " one/two clusters " << P.x << " " << P.y << std::endl;                                                                            
+                                        SiPixelCluster::PixelPos pos(P.x, P.y);
+                                        hit_broken_cluster.add(pos, P.adc);
+                                        
+                                    }
+                                    if ((P.y/2)>(cluster_double_columns[column_to_remove]/1000)){
+                                        
+                                        std::cout << " two/two clusters " << P.x << " " << P.y << std::endl;                                                                            
+                                        SiPixelCluster::PixelPos pos(P.x, P.y);
+                                        hit_broken_cluster2.add(pos, P.adc);
+                                        
+                                    }
+                                    
+                                }
+                            }
+                            
+                        }
+                    
+                }}
+                
+                
+                 std::cout<<" local x "<< hit_broken_cluster2.x() << " " <<  hit_broken_cluster.x() << " " << track_localPixel_x_ << std::endl;
+                 std::cout<<" local x "<< hit_broken_cluster2.y() << " " <<  hit_broken_cluster.y() << " " << track_localPixel_y_ << std::endl;
+                
+                if (column_to_remove>=0){
+                    if (column_to_remove==0 || column_to_remove == (int) (cluster_double_columns.size()-1)){
+                       brokenCluster_localPixel_x_=hit_broken_cluster.x();
+                       brokenCluster_localPixel_y_=hit_broken_cluster.y(); 
+                        
+                    }
+                    else{
+                       brokenCluster_localPixel_x_=hit_broken_cluster.x();
+                       brokenCluster_localPixel_y_=hit_broken_cluster.y();
+                       
+                       if (std::hypot(hit_broken_cluster2.x()-track_localPixel_x_, hit_broken_cluster2.y()-track_localPixel_y_) < 
+                    std::hypot(hit_broken_cluster.x()-track_localPixel_x_, hit_broken_cluster.y()-track_localPixel_y_)) {
+                           brokenCluster_localPixel_x_=hit_broken_cluster2.x();
+                           brokenCluster_localPixel_y_=hit_broken_cluster2.y();   
+                           
+                    }                    
+                    }
+                }
+                else{
+                    brokenCluster_localPixel_x_=-1;
+                    brokenCluster_localPixel_y_=-1;
+                }
+                
+                std::cout<<" broken local x "<<brokenCluster_localPixel_x_<< std::endl;
+                std::cout<<" broken local y "<<brokenCluster_localPixel_y_<< std::endl;
+
+                
+//                 SiPixelCluster hit_broken_cluster;
+//                 
+//                 for (int ch=0; ch<147; ch++){
+//                     
+//                     if (cluster_charge_in_hits_[ch]>0)
+//                     {
+//                         
+//                     SiPixelCluster::PixelPos pos(ch%7+cluster_center_x_-3, ch/7+cluster_center_y_-10);
+//                     std::cout << " row  "<<cluster_center_x_<< " column  "<<cluster_center_y_<<std::endl;
+//                     std::cout << " row  "<< ch%7+cluster_center_x_-3 << " column  "<< ch/7+cluster_center_y_-10<<std::endl;
+//                     std::cout << cluster_charge_in_hits_[ch]<< std::endl;
+//                     std::cout<< "-------------------" << std::endl;
+//                     hit_broken_cluster.add(pos, cluster_charge_in_hits_[ch]);
+//                         
+//                     }
+// 
+//                 }
+//                                     
+//                 std::cout<<hit_broken_cluster.x()<< std::endl;
+//                 std::cout<<hit_broken_cluster.y()<< std::endl;
                 
                 
                 
@@ -725,6 +837,7 @@ DebugPixelHits::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
                 trackFromLayer2.set_hit_local_x(hit_local_x_);trackFromLayer2.set_hit_local_y(hit_local_y_);
                 trackFromLayer2.set_hit_localPixel_x(hit_localPixel_x_);trackFromLayer2.set_hit_localPixel_y(hit_localPixel_y_);
                 trackFromLayer2.set_cluster_localPixel_x(cluster_localPixel_x_);trackFromLayer2.set_cluster_localPixel_y(cluster_localPixel_y_);
+                trackFromLayer2.set_brokenCluster_localPixel_x(brokenCluster_localPixel_x_);trackFromLayer2.set_brokenCluster_localPixel_y(brokenCluster_localPixel_y_);
                 trackFromLayer2.set_cluster_center_x(cluster_center_x_);trackFromLayer2.set_cluster_center_y(cluster_center_y_);
                 trackFromLayer2.set_hit_firstpixel_x(hit_firstpixel_x_);trackFromLayer2.set_hit_firstpixel_y(hit_firstpixel_y_);
                 trackFromLayer2.set_hit_chi2(hit_chi2_); trackFromLayer2.set_hit_charge(hit_charge_);
@@ -888,6 +1001,7 @@ DebugPixelHits::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
         hitInRandomWindow_=VarsTrack_PXB2[i].hitInRandomWindow;  hitInRandomWindowDistance_=VarsTrack_PXB2[i].hitInRandomWindowDistance;
         hit_localPixel_x_=VarsTrack_PXB2[i].hit_localPixel_x;hit_localPixel_y_=VarsTrack_PXB2[i].hit_localPixel_y;
         cluster_localPixel_x_=VarsTrack_PXB2[i].cluster_localPixel_x;cluster_localPixel_y_=VarsTrack_PXB2[i].cluster_localPixel_y;
+        brokenCluster_localPixel_x_=VarsTrack_PXB2[i].brokenCluster_localPixel_x;brokenCluster_localPixel_y_=VarsTrack_PXB2[i].brokenCluster_localPixel_y;
         source_det_=VarsTrack_PXB2[i].source_det; source_layer_=VarsTrack_PXB2[i].source_layer;
         maybeBadROC_=VarsTrack_PXB2[i].maybeBadROC; trackHasHit_=VarsTrack_PXB2[i].trackHasHit; trackHasLostHit_=VarsTrack_PXB2[i].trackHasLostHit; 
         track_alpha_=VarsTrack_PXB2[i].alpha; track_beta_=VarsTrack_PXB2[i].beta;
