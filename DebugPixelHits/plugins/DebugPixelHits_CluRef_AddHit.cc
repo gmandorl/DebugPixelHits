@@ -37,6 +37,8 @@
 #include "RecoTracker/MeasurementDet/src/TkMeasurementDetSet.h"
 #include "../interface/BadComponents.h"
 
+#include "DebugPixelHits/DebugPixelHits/interface/txt_file_data.h"
+
 #include "DataFormats/Scalers/interface/LumiScalers.h"
 #include "DataFormats/Luminosity/interface/LumiDetails.h"
 #include "DataFormats/VertexReco/interface/Vertex.h"
@@ -55,19 +57,19 @@
 
 
 #include "DebugPixelHits/DebugPixelHits/interface/VarsOfTrack.h"
+#include <fstream>
 
 
-class DebugPixelHits_TTbar : public edm::one::EDAnalyzer<edm::one::SharedResources> {
+class DebugPixelHits_CluRef_AddHit : public edm::one::EDAnalyzer<edm::one::SharedResources> {
     public:
-        explicit DebugPixelHits_TTbar(const edm::ParameterSet&);
-        ~DebugPixelHits_TTbar();
+        explicit DebugPixelHits_CluRef_AddHit(const edm::ParameterSet&);
+        ~DebugPixelHits_CluRef_AddHit();
 
     private:
         virtual void analyze(const edm::Event&, const edm::EventSetup&) ;
 
         // ----------member data ---------------------------
-//         const edm::EDGetTokenT<edm::View<reco::Candidate>> pairs_;   
-        edm::EDGetTokenT<edm::View<reco::Candidate>> candidates_;  
+        const edm::EDGetTokenT<edm::View<reco::Candidate>> pairs_;   
         const edm::EDGetTokenT<edmNew::DetSetVector<SiPixelCluster>> pixelClusterLabel_;
         const edm::EDGetTokenT<MeasurementTrackerEvent> tracker_;
         const edm::EDGetTokenT<LumiScalersCollection> lumiScaler_;
@@ -93,7 +95,7 @@ class DebugPixelHits_TTbar : public edm::one::EDAnalyzer<edm::one::SharedResourc
         TTree *tree_;
         int run_, lumi_, bx_, instLumi_, npv_; uint64_t event_; 
         float pair_mass_, track_pt_, track_eta_, track_phi_;
-        float pv_ndof_, pv_z0_, tag_dz_, tag_dxy_, pv_xyErr_, pv_zErr_, track_dz_, track_dxy_, track_dzErr_, track_dxyErr_;
+        float pv_ndof_, pv_z0_, tag_dz_, tag_dxy_, pv_xyErr_, pv_zErr_, track_dz_, track_dxy_, track_dzErr_, track_dxyErr_, track_dz_wCorr_, track_dz_compare_ ;
         int source_det_, source_layer_;
         int detid_, roc_, hitFound_, hitOnTrack_, detIsActive_, maybeBadROC_, trackHasHit_, trackHasLostHit_, hitInRandomWindow_;
         float track_global_phi_, track_global_z_, track_local_x_, track_local_y_, track_exp_sizeX_, track_exp_sizeY_, track_exp_charge_;
@@ -144,9 +146,22 @@ class DebugPixelHits_TTbar : public edm::one::EDAnalyzer<edm::one::SharedResourc
         float trackfromPV_local_Dx_,trackfromPV_local_Dy_,track_local_Dx_,track_local_Dy_;
         
         bool broken_cluster_ = false;
+        bool broken_cluster_2flag_ = false;
+        bool corr_flag_ = false;
         
         float brokenCluster_localPixel_x_=-1;
         float brokenCluster_localPixel_y_=-1;
+        
+        
+        int funzionePippo(int vivaLaVita);
+        float addHit_toTrack(TrajectoryStateOnSurface tsos, TrackingRecHit::ConstRecHitPointer hit, const reco::Vertex *bestPV, const MagneticField *theMF);
+        float addHitwCorrection_toTrack(TrajectoryStateOnSurface tsos, TrackingRecHit::ConstRecHitPointer hit, const reco::Vertex *bestPV, const MagneticField *theMF, float correct_y);
+        
+        std::pair<std::vector<int>,std::pair<int,int>> doubleColums_AndCenter(const SiPixelRecHit *pixhit);
+        std::vector<txt_file_data> readFiletxt(); 
+        
+        std::vector<txt_file_data> file_content;
+        
         
         
 };
@@ -154,8 +169,8 @@ class DebugPixelHits_TTbar : public edm::one::EDAnalyzer<edm::one::SharedResourc
 //
 // constructors and destructor
 //
-DebugPixelHits_TTbar::DebugPixelHits_TTbar(const edm::ParameterSet& iConfig):
-    //pairs_(consumes<edm::View<reco::Candidate>>(iConfig.getParameter<edm::InputTag>("pairs"))),
+DebugPixelHits_CluRef_AddHit::DebugPixelHits_CluRef_AddHit(const edm::ParameterSet& iConfig):
+    pairs_(consumes<edm::View<reco::Candidate>>(iConfig.getParameter<edm::InputTag>("pairs"))),
     //pixelClusterLabel_(consumes<edmNew::DetSetVector<SiPixelCluster>>(iConfig.getParameter<edm::InputTag>("pixelClusters"))),
     tracker_(consumes<MeasurementTrackerEvent>(iConfig.getParameter<edm::InputTag>("tracker"))),
     lumiScaler_(consumes<LumiScalersCollection>(iConfig.getParameter<edm::InputTag>("lumiScalers"))),
@@ -209,6 +224,10 @@ DebugPixelHits_TTbar::DebugPixelHits_TTbar(const edm::ParameterSet& iConfig):
     tree_->Branch("pv_xyErr", &pv_xyErr_, "pv_xyErr/F");
     tree_->Branch("pv_zErr", &pv_zErr_, "pv_zErr/F");
     tree_->Branch("track_dz", &track_dz_, "track_dz/F");
+    
+    tree_->Branch("track_dz_wCorr", &track_dz_wCorr_, "track_dz_wCorr/F");
+    tree_->Branch("track_dz_compare", &track_dz_compare_, "track_dz_compare/F");
+    
     tree_->Branch("track_dxy", &track_dxy_, "track_dxy/F");
     tree_->Branch("track_dzErr", &track_dzErr_, "track_dzErr/F");
     tree_->Branch("track_dxyErr", &track_dxyErr_, "track_dxyErr/F");
@@ -281,20 +300,24 @@ DebugPixelHits_TTbar::DebugPixelHits_TTbar(const edm::ParameterSet& iConfig):
     tree_->Branch("track_local_Dy", &track_local_Dy_, "track_local_Dy/F");
     
     tree_->Branch("broken_cluster", &broken_cluster_, "broken_cluster/O");
+    tree_->Branch("broken_cluster_2flag", &broken_cluster_2flag_, "broken_cluster_2flag/O");
+    tree_->Branch("corr_flag", &corr_flag_, "corr_flag/O");
     tree_->Branch("brokenCluster_localPixel_x", &brokenCluster_localPixel_x_, "brokenCluster_localPixel_x/F");
     tree_->Branch("brokenCluster_localPixel_y", &brokenCluster_localPixel_y_, "brokenCluster_localPixel_y/F");
     
-    candidates_ = consumes<edm::View<reco::Candidate>>(edm::InputTag("particleFlow"));
+//     candidates_ = consumes<edm::View<reco::Candidate>>(edm::InputTag("particleFlow"));
+    
+    file_content=readFiletxt();  
    
 }
 
 
-DebugPixelHits_TTbar::~DebugPixelHits_TTbar()
+DebugPixelHits_CluRef_AddHit::~DebugPixelHits_CluRef_AddHit()
 {
 }
 
     void
-DebugPixelHits_TTbar::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
+DebugPixelHits_CluRef_AddHit::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 {
     using namespace edm;
     run_  = iEvent.id().run();
@@ -314,13 +337,10 @@ DebugPixelHits_TTbar::analyze(const edm::Event& iEvent, const edm::EventSetup& i
     const MagneticField *theMF = theMFH.product();
     
     // read input
-//     Handle<View<reco::Candidate> > pairs;
-//     iEvent.getByToken(pairs_, pairs);
+    Handle<View<reco::Candidate> > pairs;
+    iEvent.getByToken(pairs_, pairs);
     
-    Handle<View<reco::Candidate> > candidates;
-    iEvent.getByToken(candidates_, candidates);
-
-//     if (pairs->empty()) return;
+    if (pairs->empty()) return;
 
     iSetup.get<TrackerTopologyRcd>().get(theTrkTopo);
     refitter_.setServices(iSetup);
@@ -339,40 +359,28 @@ DebugPixelHits_TTbar::analyze(const edm::Event& iEvent, const edm::EventSetup& i
     iEvent.getByToken(tracker_, tracker);
     //const PxMeasurementConditionSet & pixelConds = tracker->measurementTracker().pixelDetConditions();
 
-    std::vector<int> badROCs;    
+    std::vector<int> badROCs;       
     
     
-    
-//     for (const reco::Candidate & pair : *pairs) {
-    for (const reco::Candidate & candidate : *candidates) {
-//         pair_mass_ = pair.mass();
-        pair_mass_ = 0;
-        
-        if (candidate.bestTrack() == 0 ) continue;
-        if (candidate.pt() < 2) continue;
-//         const reco::Muon &tag = dynamic_cast<const reco::Muon &>(*pair.daughter(0)->masterClone());
-//         if (tag.innerTrack().isNull()) continue;
-//         const reco::Muon &mu = dynamic_cast<const reco::Muon &>(*pair.daughter(1)->masterClone());
-//         if (mu.innerTrack().isNull()) continue;
-
-        const reco::Track & mutk = *candidate.bestTrack(); //questa non è una mutk ma una traccia qualunque--> cambiare nome
+    for (const reco::Candidate & pair : *pairs) {    
+        pair_mass_ = pair.mass();       
+        const reco::Muon &tag = dynamic_cast<const reco::Muon &>(*pair.daughter(0)->masterClone());
+        if (tag.innerTrack().isNull()) continue;
+        const reco::Muon &mu = dynamic_cast<const reco::Muon &>(*pair.daughter(1)->masterClone());
+        if (mu.innerTrack().isNull()) continue;
         const reco::Vertex *bestPV = &vertices->front();
-        
-//         float bestDZ = std::abs(tag.innerTrack()->dz(bestPV->position()));
-        
-        float bestDZ = std::abs(mutk.dz(bestPV->position()));
+        float bestDZ = std::abs(tag.innerTrack()->dz(bestPV->position()));
         for (const reco::Vertex &pv : *vertices) {
-//             float thisDZ = std::abs(tag.innerTrack()->dz(pv.position()));
-            float thisDZ = std::abs(mutk.dz(pv.position()));
+            float thisDZ = std::abs(tag.innerTrack()->dz(pv.position()));
             if (thisDZ < bestDZ) { bestDZ = thisDZ; bestPV = &pv; }            
         }
         pv_ndof_ = bestPV->ndof();
         pv_z0_ = bestPV->z();
         pv_xyErr_ = std::hypot(bestPV->xError(), bestPV->yError());
         pv_zErr_ = bestPV->zError();
-        tag_dz_ = -1;//tag.innerTrack()->dz(bestPV->position());
-        tag_dxy_ = -1;//tag.innerTrack()->dxy(bestPV->position());
-//         const reco::Track & mutk = *mu.innerTrack();
+        tag_dz_ = tag.innerTrack()->dz(bestPV->position());
+        tag_dxy_ = tag.innerTrack()->dxy(bestPV->position());
+        const reco::Track & mutk = *mu.innerTrack();
         track_pt_ = mutk.pt();
         track_eta_ = mutk.eta();
         track_phi_ = mutk.phi();
@@ -380,17 +388,12 @@ DebugPixelHits_TTbar::analyze(const edm::Event& iEvent, const edm::EventSetup& i
         track_dxy_ = mutk.dxy(bestPV->position());
         track_dzErr_ = mutk.dzError();
         track_dxyErr_ = mutk.dxyError();
-        
-        if (track_dxy_/track_dxyErr_>2||track_dz_/track_dzErr_>2) continue;
-        
         trackHasHit_ = mutk.hitPattern().hasValidHitInPixelLayer(PixelSubdetector::SubDetector::PixelBarrel, 1);
         trackHasLostHit_ = mutk.hitPattern().numberOfLostPixelBarrelHits(reco::HitPattern::MISSING_INNER_HITS);
         bool PXB1Valid =  mutk.hitPattern().hasValidHitInPixelLayer(PixelSubdetector::SubDetector::PixelBarrel, 1);
         bool PXB2Valid =  mutk.hitPattern().hasValidHitInPixelLayer(PixelSubdetector::SubDetector::PixelBarrel, 2);
         if (debug_) printf("\n\nMuon with pt %f eta %f, found PXB hits: %d, lost PXB inner hits along: %d, lost PXB inner hits before: %d, PXB1 hit: %d, PXB2 hit: %d, PXB3 hit: %d, PXF1 hit: %d, PXF2 hit: %d\n",
-//                             mu.pt(),  mu.eta(),
-                            candidate.pt(),  candidate.eta(),
-                            mutk.hitPattern().numberOfValidPixelBarrelHits(), 
+                            mu.pt(),  mu.eta(), mutk.hitPattern().numberOfValidPixelBarrelHits(), 
                             mutk.hitPattern().numberOfLostPixelBarrelHits(reco::HitPattern::TRACK_HITS), mutk.hitPattern().numberOfLostPixelBarrelHits(reco::HitPattern::MISSING_INNER_HITS), 
                             PXB1Valid, PXB2Valid, mutk.hitPattern().hasValidHitInPixelLayer(PixelSubdetector::SubDetector::PixelBarrel, 3),
                             mutk.hitPattern().hasValidHitInPixelLayer(PixelSubdetector::SubDetector::PixelEndcap, 1), 
@@ -438,7 +441,8 @@ DebugPixelHits_TTbar::analyze(const edm::Event& iEvent, const edm::EventSetup& i
         //for (const auto * PXBLayer : PXBLs) { std::cout << "PXB Layer with radius = " << PXBLayer->specificSurface().radius() << std::endl; }
         const auto *pxbLayer1 = gst->pixelBarrelLayers().front();
         auto compDets = pxbLayer1->compatibleDets(tsosPXB2, *thePropagatorOpposite, *theEstimator);
-
+        
+        
        
         VarsTrack_PXB2.clear();
         for (const auto & detAndState : compDets) {
@@ -543,17 +547,68 @@ DebugPixelHits_TTbar::analyze(const edm::Event& iEvent, const edm::EventSetup& i
                 hit_local_x_ = hitpos.x();
                 hit_local_y_ = hitpos.y();
                 
-                //                 posizione locale
+                
+                //fare qui un aggiornamento della traccia dal layer2 con il layer 1 hit:
+                ///parte nuova in cui si tenta di mettere le hit alla traccia
+                //find correct hit:
+                
+                float correct_y=0;
+                bool corr_flag2=0;
+                for (unsigned int i=0; i<file_content.size(); i++){
+                    
+                     if (file_content[i].lumi==lumi_ && file_content[i].bx==bx_ && file_content[i].run==run_ && file_content[i].instLumi==instLumi_ && 
+                        file_content[i].npv==npv_ && file_content[i].detid==detid_) {
+                            
+                            if (fabs(file_content[i].track_pt-track_pt_)<0.1){
+                            std::cout << file_content[i].track_pt << " PTT" <<  file_content[i].index <<" "<< track_pt_<<  std::endl;
+                            correct_y=file_content[i].abs_pred_hit_pos_y;
+                            std::cout <<correct_y<< "correct y"<<std::endl;
+                            if (file_content.size()>0) file_content.erase(file_content.begin(),file_content.begin()+i);
+                            if (file_content.size()>0) corr_flag2=1;
+                            std::cout <<correct_y<< "ma cosa succede qui"<<std::endl;
+                            }
+                            std::cout <<correct_y<< "E qui ?"<<std::endl;
+                        }
+                        
+                        std::cout <<correct_y<< "E qui    rr?"<<std::endl;
+                    
+                }
+            
+                
+                std::cout<<mutk.dz(bestPV->position())<<"   the dz ip"<<std::endl;
+                track_dz_compare_=addHit_toTrack(detAndState.second, hit, bestPV, theMF); 
+                
+
+                // posizione locale
                 LocalPoint xytrack(hit_local_x_, hit_local_y_);
+                
                 hit_localPixel_x_=(dynamic_cast<const PixelGeomDetUnit*>(detAndState.first))->specificTopology().pixel(xytrack).first;
                 hit_localPixel_y_=(dynamic_cast<const PixelGeomDetUnit*>(detAndState.first))->specificTopology().pixel(xytrack).second;
+                
+                std::cout<<hit_local_y_<< " ---?--- "<<(dynamic_cast<const PixelGeomDetUnit*>(detAndState.first))->specificTopology().localY(hit_localPixel_y_)<<std::endl;
+                std::cout<<hit_local_y_<< " ---?--- "<<(dynamic_cast<const PixelGeomDetUnit*>(detAndState.first))->specificTopology().localY(correct_y)<<std::endl;
+                
+//                 bisogna protare le cose in coordinate locali
+//              correct_y --> va portata nelle coordinate locali
+                
+                track_dz_wCorr_=addHitwCorrection_toTrack(detAndState.second, hit, bestPV, theMF, 
+                    (dynamic_cast<const PixelGeomDetUnit*>(detAndState.first))->specificTopology().localY(correct_y));        
+                std::cout<<mutk.dz(bestPV->position())<<"   the dz ip after"<<std::endl;
+                
+                
                 
                 cluster_localPixel_x_=clustref->x();
                 cluster_localPixel_y_=clustref->y();
                 
                 
-                cluster_center_x_ = (int) round(track_localPixel_x_/*clustref->x()*/);
-                cluster_center_y_ = (int) round(track_localPixel_y_/*clustref->y()*/);
+//                 cluster_center_x_ = (int) round(track_localPixel_x_/*clustref->x()*/);
+//                 cluster_center_y_ = (int) round(track_localPixel_y_/*clustref->y()*/);
+                cluster_center_x_ = (int) round(clustref->x());
+                cluster_center_y_ = (int) round(clustref->y());
+                //questo va corretto in ogni caso
+                //bisogna riaggiornare il centro a quello a sinistra
+                
+                
                 hit_firstpixel_x_ = clustref->minPixelRow();
                 hit_firstpixel_y_ = clustref->minPixelCol();
                 hit_chi2_ = hitAndChi2.first;
@@ -590,12 +645,23 @@ DebugPixelHits_TTbar::analyze(const edm::Event& iEvent, const edm::EventSetup& i
                 
                 
                 std::vector<int> cluster_double_columns;
+
+                int cluster_min_x=160;
+                int cluster_min_y=416;
                 
                 for (const auto &P : clustref->pixels()) { 
                     
-                    if(abs(P.x-cluster_center_x_) < 4 &&  abs(P.y-cluster_center_y_) < 11 && P.adc>0)
+                    if(/*abs(P.x-cluster_center_x_) < 4 &&  abs(P.y-cluster_center_y_) < 11 &&*/ P.adc>0)
                     {
                         float double_column=P.y/2*1000+P.x/80;
+                        
+                        std::cout<<P.x<<" "<<P.y<<" "<<cluster_min_x<<" "<<cluster_min_y<<" centerrZ"<<std::endl;
+                        
+                        if (P.y<cluster_min_y && P.adc>0) cluster_min_y=P.y;
+                        if (P.x<cluster_min_x && P.adc>0) cluster_min_x=P.x;
+                        
+                        std::cout<<P.x<<" "<<P.y<<" "<<cluster_min_x<<" "<<cluster_min_y<<" centerrZ"<<std::endl;
+                        
                         std::cout<<P.x<<" "<<P.y<<" "<<double_column<<std::endl;
                         if ( std::find(cluster_double_columns.begin(), cluster_double_columns.end(), double_column) == cluster_double_columns.end() ){
                             std::cout<<P.x<<" "<<P.y<<" "<<double_column<< "  if not in vec already " <<std::endl;
@@ -606,6 +672,11 @@ DebugPixelHits_TTbar::analyze(const edm::Event& iEvent, const edm::EventSetup& i
                     }
                     
                 }
+                
+//                 update cluster_center
+                cluster_center_x_ = cluster_min_x;
+                cluster_center_y_ = cluster_min_y+3;
+                
                 
                 for (unsigned int ss=0; ss<cluster_double_columns.size(); ++ss) std::cout<<cluster_double_columns[ss]<< "col in columns"<<std::endl;
                 
@@ -672,6 +743,115 @@ DebugPixelHits_TTbar::analyze(const edm::Event& iEvent, const edm::EventSetup& i
                 std::cout <<column2_status_[c]<<" " ;
                 }
                 std::cout <<" "<<std::endl; 
+                
+                
+                 
+                ///Moved Block 
+                
+                SiPixelCluster hit_broken_cluster;
+                SiPixelCluster hit_broken_cluster2;
+                
+                int cluster_min_x1=160;
+                int cluster_min_y1=416;
+                int cluster_min_x2=160;
+                int cluster_min_y2=416;
+                
+                
+                for (const auto & rec_hit : rechitsAndChi2) {
+                     auto & all_hit =rec_hit.second;
+                     const auto * pixAllhit = dynamic_cast<const SiPixelRecHit*>(&*all_hit);    if (!pixAllhit) throw cms::Exception("CorruptData", "Valid PXB1 hit that is not a SiPixelRecHit");
+                     auto all_clustref = pixAllhit->cluster();                                  if (all_clustref.isNull()) throw cms::Exception("CorruptData", "Valid PXB1 SiPixelRecHit with null cluster ref");  
+                     
+                     for (const auto &P : all_clustref->pixels()) { 
+                     if(/*abs(P.x-cluster_center_x_) < 4 &&  abs(P.y-cluster_center_y_) < 11 && */P.adc>0)
+                        {
+                            printf("      pixel at x = %3d - %3d  \t  y = %3d - %3d \t adc: %5d\n", P.x, cluster_center_x_, P.y, cluster_center_y_, P.adc);
+                            std::cout << " col size " <<(int) cluster_double_columns.size()  << " " << column_to_remove;
+                            
+                            if (column_to_remove>=0){
+                                if (column_to_remove==0 || column_to_remove == (int) (cluster_double_columns.size()-1)){
+                                    
+                                    if((P.y/2)!=(cluster_double_columns[column_to_remove]/1000)){
+                                        
+                                    std::cout << " one cluster " << P.x << " " << P.y << std::endl;
+                                    SiPixelCluster::PixelPos pos(P.x, P.y);
+                                    hit_broken_cluster.add(pos, P.adc);
+                                    
+                                    if (P.y<cluster_min_y1 && P.adc>0) cluster_min_y1=P.y;
+                                    if (P.x<cluster_min_x1 && P.adc>0) cluster_min_x1=P.x;
+                                    
+                                        
+                                    }
+                                    
+                                }
+                                else{
+                                    
+                                    if ((P.y/2)<(cluster_double_columns[column_to_remove]/1000)){
+                                        
+                                        std::cout << " one/two clusters " << P.x << " " << P.y << std::endl;                                                                            
+                                        SiPixelCluster::PixelPos pos(P.x, P.y);
+                                        hit_broken_cluster.add(pos, P.adc);
+                                        
+                                        if (P.y<cluster_min_y1 && P.adc>0) cluster_min_y1=P.y;
+                                        if (P.x<cluster_min_x1 && P.adc>0) cluster_min_x1=P.x;
+                                        
+                                        
+                                    }
+                                    if ((P.y/2)>(cluster_double_columns[column_to_remove]/1000)){
+                                        
+                                        std::cout << " two/two clusters " << P.x << " " << P.y << std::endl;                                                                            
+                                        SiPixelCluster::PixelPos pos(P.x, P.y);
+                                        hit_broken_cluster2.add(pos, P.adc);
+                                        
+                                        if (P.y<cluster_min_y2 && P.adc>0) cluster_min_y2=P.y;
+                                        if (P.x<cluster_min_x2 && P.adc>0) cluster_min_x2=P.x;
+                                        
+                                        
+                                    }
+                                    
+                                }
+                            }
+                            
+                        }
+                    
+                }}
+                
+                
+                 std::cout<<" local x "<< hit_broken_cluster2.x() << " " <<  hit_broken_cluster.x() << " " << track_localPixel_x_ << std::endl;
+                 std::cout<<" local x "<< hit_broken_cluster2.y() << " " <<  hit_broken_cluster.y() << " " << track_localPixel_y_ << std::endl;
+                
+                if (column_to_remove>=0){
+                    if (column_to_remove==0 || column_to_remove == (int) (cluster_double_columns.size()-1)){
+                       brokenCluster_localPixel_x_=hit_broken_cluster.x();
+                       brokenCluster_localPixel_y_=hit_broken_cluster.y(); 
+                       
+//                        cluster_center_x_ = cluster_min_x1;
+//                        cluster_center_y_ = cluster_min_y1+3;
+                        
+                    }
+                    else{
+                       brokenCluster_localPixel_x_=hit_broken_cluster.x();
+                       brokenCluster_localPixel_y_=hit_broken_cluster.y();
+//                        cluster_center_x_ = cluster_min_x1;
+//                        cluster_center_y_ = cluster_min_y1+3;
+                       
+                       if (std::hypot(hit_broken_cluster2.x()-track_localPixel_x_, hit_broken_cluster2.y()-track_localPixel_y_) < 
+                    std::hypot(hit_broken_cluster.x()-track_localPixel_x_, hit_broken_cluster.y()-track_localPixel_y_)) {
+                           brokenCluster_localPixel_x_=hit_broken_cluster2.x();
+                           brokenCluster_localPixel_y_=hit_broken_cluster2.y();
+//                            cluster_center_x_ = cluster_min_x2;
+//                            cluster_center_y_ = cluster_min_y2+3;
+                           
+                    }                    
+                    }
+                }
+                else{
+                    brokenCluster_localPixel_x_=-1;
+                    brokenCluster_localPixel_y_=-1;
+                }
+                
+                std::cout<<" broken local x "<<brokenCluster_localPixel_x_<< std::endl;
+                std::cout<<" broken local y "<<brokenCluster_localPixel_y_<< std::endl;                
                 
                 
                 for (unsigned int c=0; c< module_y; c++){
@@ -746,89 +926,11 @@ DebugPixelHits_TTbar::analyze(const edm::Event& iEvent, const edm::EventSetup& i
                     
                 } 
                 
-                SiPixelCluster hit_broken_cluster;
-                SiPixelCluster hit_broken_cluster2;
                 
-                for (const auto & rec_hit : rechitsAndChi2) {
-                     auto & all_hit =rec_hit.second;
-                     const auto * pixAllhit = dynamic_cast<const SiPixelRecHit*>(&*all_hit);    if (!pixAllhit) throw cms::Exception("CorruptData", "Valid PXB1 hit that is not a SiPixelRecHit");
-                     auto all_clustref = pixAllhit->cluster();                                  if (all_clustref.isNull()) throw cms::Exception("CorruptData", "Valid PXB1 SiPixelRecHit with null cluster ref");  
-                     
-                     for (const auto &P : all_clustref->pixels()) { 
-                     if(abs(P.x-cluster_center_x_) < 4 &&  abs(P.y-cluster_center_y_) < 11 )
-                        {
-                            printf("      pixel at x = %3d - %3d  \t  y = %3d - %3d \t adc: %5d\n", P.x, cluster_center_x_, P.y, cluster_center_y_, P.adc);
-                            std::cout << " col size " <<(int) cluster_double_columns.size()  << " " << column_to_remove;
-                            
-                            if (column_to_remove>=0){
-                                if (column_to_remove==0 || column_to_remove == (int) (cluster_double_columns.size()-1)){
-                                    
-                                    if((P.y/2)!=(cluster_double_columns[column_to_remove]/1000)){
-                                        
-                                    std::cout << " one cluster " << P.x << " " << P.y << std::endl;
-                                    SiPixelCluster::PixelPos pos(P.x, P.y);
-                                    hit_broken_cluster.add(pos, P.adc);
-                                        
-                                    }
-                                    
-                                }
-                                else{
-                                    
-                                    if ((P.y/2)<(cluster_double_columns[column_to_remove]/1000)){
-                                        
-                                        std::cout << " one/two clusters " << P.x << " " << P.y << std::endl;                                                                            
-                                        SiPixelCluster::PixelPos pos(P.x, P.y);
-                                        hit_broken_cluster.add(pos, P.adc);
-                                        
-                                    }
-                                    if ((P.y/2)>(cluster_double_columns[column_to_remove]/1000)){
-                                        
-                                        std::cout << " two/two clusters " << P.x << " " << P.y << std::endl;                                                                            
-                                        SiPixelCluster::PixelPos pos(P.x, P.y);
-                                        hit_broken_cluster2.add(pos, P.adc);
-                                        
-                                    }
-                                    
-                                }
-                            }
-                            
-                        }
-                    
-                }}
-                
-                
-                 std::cout<<" local x "<< hit_broken_cluster2.x() << " " <<  hit_broken_cluster.x() << " " << track_localPixel_x_ << std::endl;
-                 std::cout<<" local x "<< hit_broken_cluster2.y() << " " <<  hit_broken_cluster.y() << " " << track_localPixel_y_ << std::endl;
-                
-                if (column_to_remove>=0){
-                    if (column_to_remove==0 || column_to_remove == (int) (cluster_double_columns.size()-1)){
-                       brokenCluster_localPixel_x_=hit_broken_cluster.x();
-                       brokenCluster_localPixel_y_=hit_broken_cluster.y(); 
-                        
-                    }
-                    else{
-                       brokenCluster_localPixel_x_=hit_broken_cluster.x();
-                       brokenCluster_localPixel_y_=hit_broken_cluster.y();
-                       
-                       if (std::hypot(hit_broken_cluster2.x()-track_localPixel_x_, hit_broken_cluster2.y()-track_localPixel_y_) < 
-                    std::hypot(hit_broken_cluster.x()-track_localPixel_x_, hit_broken_cluster.y()-track_localPixel_y_)) {
-                           brokenCluster_localPixel_x_=hit_broken_cluster2.x();
-                           brokenCluster_localPixel_y_=hit_broken_cluster2.y();   
-                           
-                    }                    
-                    }
-                }
-                else{
-                    brokenCluster_localPixel_x_=-1;
-                    brokenCluster_localPixel_y_=-1;
-                }
-                
-                std::cout<<" broken local x "<<brokenCluster_localPixel_x_<< std::endl;
-                std::cout<<" broken local y "<<brokenCluster_localPixel_y_<< std::endl;
 
                 
                 
-                
+                trackFromLayer2.set_dz_wCorrection(track_dz_wCorr_);trackFromLayer2.set_Correction_Flag(corr_flag2);trackFromLayer2.set_dz_compare(track_dz_compare_);
                 trackFromLayer2.set_hit_global_phi(hit_global_phi_);trackFromLayer2.set_hit_global_z(hit_global_z_);
                 trackFromLayer2.set_hit_local_x(hit_local_x_);trackFromLayer2.set_hit_local_y(hit_local_y_);
                 trackFromLayer2.set_hit_localPixel_x(hit_localPixel_x_);trackFromLayer2.set_hit_localPixel_y(hit_localPixel_y_);
@@ -852,6 +954,8 @@ DebugPixelHits_TTbar::analyze(const edm::Event& iEvent, const edm::EventSetup& i
                 trackFromLayer2.set_All_hits_charge(All_hits_charge);
                 trackFromLayer2.set_All_hits_Px(All_hits_Px);
                 trackFromLayer2.set_All_hits_Py(All_hits_Py);
+                trackFromLayer2.set_broken_Cluster_Flag(column_to_remove>=0);
+                
 //                 trackFromLayer2.set_cluster_xs(cluster_x_inModule_);
 //                 trackFromLayer2.set_cluster_ys(cluster_y_inModule_);
                 
@@ -913,9 +1017,13 @@ DebugPixelHits_TTbar::analyze(const edm::Event& iEvent, const edm::EventSetup& i
         std::cout<< tsosPXB2.isValid()<< " is valid "<<std::endl; 
         TrajectoryStateOnSurface tsosAtVtx = extrapolator.extrapolate(*tsosPXB2.freeState(),pos);
         std::cout << "Extrapolated" <<std::endl; 
+        if (tsosAtVtx.isValid()==false) continue;
         const Surface& surfAtVtx = tsosAtVtx.surface();
+        std::cout<<"surface"<<std::endl;
         LocalPoint vtxPosL = surfAtVtx.toLocal(pos);
+        std::cout<<"surface"<<std::endl;
         LocalError vtxErrL = ErrorFrameTransformer().transform(err,surfAtVtx);
+        std::cout<<"tttt"<<std::endl;
         TransientTrackingRecHit::RecHitPointer vtxhit = TRecHit2DPosConstraint::build(vtxPosL,vtxErrL,&surfAtVtx);
         
         //update 
@@ -982,6 +1090,7 @@ DebugPixelHits_TTbar::analyze(const edm::Event& iEvent, const edm::EventSetup& i
 
         std::cout<< VarsTrack_PXB2.size() << " " << VarsTrack_wPV.size()<< std::endl;
         hitFound_=VarsTrack_PXB2[i].hitFound; 
+        track_dz_wCorr_=VarsTrack_PXB2[i].dz_wCorrection; corr_flag_=VarsTrack_PXB2[i].corr_FLAG; track_dz_compare_=VarsTrack_PXB2[i].dz_compare;
         detid_=VarsTrack_PXB2[i].detid; detIsActive_=VarsTrack_PXB2[i].detIsActive; roc_=VarsTrack_PXB2[i].roc; 
         track_global_phi_=VarsTrack_PXB2[i].track_global_phi; track_global_z_=VarsTrack_PXB2[i].track_global_z;
         track_local_x_=VarsTrack_PXB2[i].track_local_x; track_local_y_=VarsTrack_PXB2[i].track_local_y;
@@ -1012,7 +1121,7 @@ DebugPixelHits_TTbar::analyze(const edm::Event& iEvent, const edm::EventSetup& i
         }
         
         broken_cluster_=!(std::equal(cluster_charge_in_hits_, cluster_charge_in_hits_+147, cluster_chargeBroken_in_hits_)); 
-        
+        broken_cluster_2flag_=VarsTrack_PXB2[i].broken_cl_FLAG;
        
         for (unsigned int k=0; k< 416; k++)
         {
@@ -1075,6 +1184,191 @@ DebugPixelHits_TTbar::analyze(const edm::Event& iEvent, const edm::EventSetup& i
 }
 
 
+int DebugPixelHits_CluRef_AddHit::funzionePippo (int vivaLaVita) {
+return 1;
+}
+
+
+float DebugPixelHits_CluRef_AddHit::addHit_toTrack(TrajectoryStateOnSurface tsos, TrackingRecHit::ConstRecHitPointer hit, const reco::Vertex *bestPV, const MagneticField *theMF){
+    std::cout << "analytical propagator" <<std::endl;        
+    AnalyticalPropagator myPropagator_L1(theMF,anyDirection);// no material surface inside 1st hit
+
+    std::cout << "TransverseImpactPointExtrapolator" <<std::endl; 
+    TransverseImpactPointExtrapolator extrapolator_L1(myPropagator_L1);
+
+    std::cout << "Extrapolated" <<std::endl; 
+    TrajectoryStateOnSurface updated_L1 = updator_->update(tsos, *hit);
+
+    std::cout << "global Point PV" <<std::endl;                 
+    GlobalPoint posV(bestPV->x(), bestPV->y(), bestPV->z());                                  
+    TrajectoryStateOnSurface updated_L1_pv = extrapolator_L1.extrapolate(*updated_L1.freeState(),posV);
+    TrajectoryStateOnSurface tsos_pv = extrapolator_L1.extrapolate(*tsos.freeState(),posV);
+
+    double px=updated_L1_pv.globalMomentum().x();
+    double py=updated_L1_pv.globalMomentum().y();
+    double pz=updated_L1_pv.globalMomentum().z();
+    double xp=updated_L1_pv.globalPosition().x();
+    double yp=updated_L1_pv.globalPosition().y();
+    double zp=updated_L1_pv.globalPosition().z();
+    double pT=std::hypot(px,py);
+
+    double px2=tsos_pv.globalMomentum().x();
+    double py2=tsos_pv.globalMomentum().y();
+    double pz2=tsos_pv.globalMomentum().z();
+    double xp2=tsos_pv.globalPosition().x();
+    double yp2=tsos_pv.globalPosition().y();
+    double zp2=tsos_pv.globalPosition().z();
+    double pT2=std::hypot(px,py);
+/*                
+    std::cout<< updated_L1_pv.globalMomentum().x()<<"  "<< mutk.px() << " "<< tsos.globalMomentum().x()<<std::endl;
+    std::cout<< updated_L1_pv.globalMomentum().y()<<"  "<< mutk.py() << " "<< tsos.globalMomentum().y()<<std::endl;
+    std::cout<< updated_L1_pv.globalMomentum().z()<<"  "<< mutk.pz() << " "<< tsos.globalMomentum().z()<<std::endl;*/
+
+    std::cout<<(-bestPV->z()+zp) - ((-bestPV->x()+xp) * px + (-bestPV->y()+yp) * py) / pT * (pz / pT)<<"   the dz ip"<<std::endl;
+    std::cout<<(-bestPV->z()+zp2) - ((-bestPV->x()+xp2) * px2 + (-bestPV->y()+yp2) * py2) / pT2 * (pz2 / pT2)<<"   the dz ip"<<std::endl;
+//     std::cout<<mutk.dz(bestPV->position())<<"   the dz ip"<<std::endl;
+    std::cout<<" --------------------------------   the dz ip"<<std::endl;
+    return (-bestPV->z()+zp) - ((-bestPV->x()+xp) * px + (-bestPV->y()+yp) * py) / pT * (pz / pT);
+    
+}
+
+
+
+float DebugPixelHits_CluRef_AddHit::addHitwCorrection_toTrack(TrajectoryStateOnSurface tsos, TrackingRecHit::ConstRecHitPointer hit, const reco::Vertex *bestPV, const MagneticField *theMF, float correct_y){
+    
+    hit->localPosition().x();  
+    LocalPoint xytrack1(hit_local_x_, correct_y);           
+    
+    std::cout << "analytical propagator at L1" <<std::endl;        
+    AnalyticalPropagator myPropagatorL1(theMF,anyDirection);// no material surface inside 1st hit
+    
+    std::cout << "TransverseImpactPointExtrapolator at L1" <<std::endl; 
+    TransverseImpactPointExtrapolator extrapolatorL1(myPropagatorL1);
+
+    const Surface& surfAtL1 = tsos.surface();
+    TransientTrackingRecHit::RecHitPointer l1_hit = TRecHit2DPosConstraint::build(xytrack1,hit->localPositionError(),&surfAtL1);
+    
+    //update 
+    std::cout << "update" <<std::endl; 
+    TrajectoryStateOnSurface updated_L1 = updator_->update(tsos, *l1_hit);               
+    //Ma per ora è tutto sbagliato
+    
+    std::cout << "global Point PV" <<std::endl;                 
+    GlobalPoint posV(bestPV->x(), bestPV->y(), bestPV->z());                                  
+    TrajectoryStateOnSurface updated_L1_pv = extrapolatorL1.extrapolate(*updated_L1.freeState(),posV);    
+    TrajectoryStateOnSurface tsos_pv = extrapolatorL1.extrapolate(*tsos.freeState(),posV);
+    
+    double px=updated_L1_pv.globalMomentum().x();
+    double py=updated_L1_pv.globalMomentum().y();
+    double pz=updated_L1_pv.globalMomentum().z();
+    double xp=updated_L1_pv.globalPosition().x();
+    double yp=updated_L1_pv.globalPosition().y();
+    double zp=updated_L1_pv.globalPosition().z();
+    double pT=std::hypot(px,py);
+
+    double px2=tsos_pv.globalMomentum().x();
+    double py2=tsos_pv.globalMomentum().y();
+    double pz2=tsos_pv.globalMomentum().z();
+    double xp2=tsos_pv.globalPosition().x();
+    double yp2=tsos_pv.globalPosition().y();
+    double zp2=tsos_pv.globalPosition().z();
+    double pT2=std::hypot(px,py);
+/*                
+    std::cout<< updated_L1_pv.globalMomentum().x()<<"  "<< mutk.px() << " "<< tsos.globalMomentum().x()<<std::endl;
+    std::cout<< updated_L1_pv.globalMomentum().y()<<"  "<< mutk.py() << " "<< tsos.globalMomentum().y()<<std::endl;
+    std::cout<< updated_L1_pv.globalMomentum().z()<<"  "<< mutk.pz() << " "<< tsos.globalMomentum().z()<<std::endl;*/
+
+    std::cout<<(-bestPV->z()+zp) - ((-bestPV->x()+xp) * px + (-bestPV->y()+yp) * py) / pT * (pz / pT)<<"   the dz ip"<<std::endl;
+    std::cout<<(-bestPV->z()+zp2) - ((-bestPV->x()+xp2) * px2 + (-bestPV->y()+yp2) * py2) / pT2 * (pz2 / pT2)<<"   the dz ip"<<std::endl;
+//     std::cout<<mutk.dz(bestPV->position())<<"   the dz ip"<<std::endl;
+    std::cout<<" --------------------------------   the dz ip"<<std::endl;    
+    return (-bestPV->z()+zp) - ((-bestPV->x()+xp) * px + (-bestPV->y()+yp) * py) / pT * (pz / pT);
+    
+}
+
+std::pair<std::vector<int>,std::pair<int,int>> DebugPixelHits_CluRef_AddHit::doubleColums_AndCenter(const SiPixelRecHit *pixhit) {   
+    
+    auto clustref = pixhit->cluster();   
+    
+    std::vector<int> cluster_double_columns;
+
+    int cluster_min_x=160;
+    int cluster_min_y=416;
+
+    for (const auto &P : clustref->pixels()) { 
+
+    if(/*abs(P.x-cluster_center_x_) < 4 &&  abs(P.y-cluster_center_y_) < 11 &&*/ P.adc>0)
+    {
+        float double_column=P.y/2*1000+P.x/80;
+        
+        std::cout<<P.x<<" "<<P.y<<" "<<cluster_min_x<<" "<<cluster_min_y<<" centerrZ"<<std::endl;
+        
+        if (P.y<cluster_min_y && P.adc>0) cluster_min_y=P.y;
+        if (P.x<cluster_min_x && P.adc>0) cluster_min_x=P.x;
+        
+        std::cout<<P.x<<" "<<P.y<<" "<<cluster_min_x<<" "<<cluster_min_y<<" centerrZ"<<std::endl;
+        
+        std::cout<<P.x<<" "<<P.y<<" "<<double_column<<std::endl;
+        if ( std::find(cluster_double_columns.begin(), cluster_double_columns.end(), double_column) == cluster_double_columns.end() ){
+            std::cout<<P.x<<" "<<P.y<<" "<<double_column<< "  if not in vec already " <<std::endl;
+            cluster_double_columns.push_back(double_column);
+            
+        }
+            
+    }
+
+    }
+    
+    return std::make_pair(cluster_double_columns,std::make_pair(cluster_min_x,cluster_min_y));
+};
+
+
+std::vector<txt_file_data> DebugPixelHits_CluRef_AddHit::readFiletxt() {     
+    
+    std::vector<txt_file_data> thefile;
+    
+    std::cout<<"/afs/cern.ch/work/l/legianni/test933pre3/CMSSW_9_3_0_pre3/src/DebugPixelHits/DebugPixelHits/testfile2.txt"<<std::endl;
+    std::ifstream infile("/afs/cern.ch/work/l/legianni/test933pre3/CMSSW_9_3_0_pre3/src/DebugPixelHits/DebugPixelHits/testfile2.txt");
+    float a, b, c, d, e;
+    float a1, b1, c1, d1, e1;
+    
+    int run, lumi, bx, instLumi, npv, detid;
+    while (infile >> a >> run >> lumi >> bx >> instLumi >> npv >> detid >>
+        b >> c >> d >> e >> a1 >> b1 >> c1 >> d1 >> e1)
+    {
+        txt_file_data oneline;
+//          std::cout << "reading file" << std::endl;
+//          std::cout << run << " " << lumi << " " << bx << " " << instLumi << " " << npv << " " << detid << std::endl;
+//          std::cout << a << b << c << d << e << a1 << b1 << c1 << d1 << e1 << std::endl;
+        
+        oneline.set_run(run);
+        oneline.set_lumi(lumi);
+        oneline.set_bx(bx);
+        oneline.set_instLumi(instLumi);
+        oneline.set_npv(npv);
+        oneline.set_detid(detid);
+        
+        oneline.set_index(a);
+        oneline.set_track_pt(b);
+        oneline.set_pred_hit_pos_y(c);
+        oneline.set_hit_pos_y(d);
+        oneline.set_cluster_center_y(e);
+        oneline.set_abs_hit_pos_y(a1);
+        oneline.set_hit_pos_x(b1);
+        oneline.set_cluster_center_x(c1);
+        oneline.set_abs_hit_pos_x(d1);
+        oneline.set_abs_pred_hit_pos_y(e1);
+
+        thefile.push_back(oneline);   
+
+    }
+    
+    return thefile;
+    
+    
+        
+}
+
 //define this as a plug-in
-DEFINE_FWK_MODULE(DebugPixelHits_TTbar);
+DEFINE_FWK_MODULE(DebugPixelHits_CluRef_AddHit);
 //  edm::ESHandle<MagneticField> theMF;

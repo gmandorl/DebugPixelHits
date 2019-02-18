@@ -57,10 +57,10 @@
 #include "DebugPixelHits/DebugPixelHits/interface/VarsOfTrack.h"
 
 
-class DebugPixelHits_TTbar : public edm::one::EDAnalyzer<edm::one::SharedResources> {
+class DebugPixelHits_MC_pT2GeV : public edm::one::EDAnalyzer<edm::one::SharedResources> {
     public:
-        explicit DebugPixelHits_TTbar(const edm::ParameterSet&);
-        ~DebugPixelHits_TTbar();
+        explicit DebugPixelHits_MC_pT2GeV(const edm::ParameterSet&);
+        ~DebugPixelHits_MC_pT2GeV();
 
     private:
         virtual void analyze(const edm::Event&, const edm::EventSetup&) ;
@@ -154,7 +154,7 @@ class DebugPixelHits_TTbar : public edm::one::EDAnalyzer<edm::one::SharedResourc
 //
 // constructors and destructor
 //
-DebugPixelHits_TTbar::DebugPixelHits_TTbar(const edm::ParameterSet& iConfig):
+DebugPixelHits_MC_pT2GeV::DebugPixelHits_MC_pT2GeV(const edm::ParameterSet& iConfig):
     //pairs_(consumes<edm::View<reco::Candidate>>(iConfig.getParameter<edm::InputTag>("pairs"))),
     //pixelClusterLabel_(consumes<edmNew::DetSetVector<SiPixelCluster>>(iConfig.getParameter<edm::InputTag>("pixelClusters"))),
     tracker_(consumes<MeasurementTrackerEvent>(iConfig.getParameter<edm::InputTag>("tracker"))),
@@ -289,12 +289,12 @@ DebugPixelHits_TTbar::DebugPixelHits_TTbar(const edm::ParameterSet& iConfig):
 }
 
 
-DebugPixelHits_TTbar::~DebugPixelHits_TTbar()
+DebugPixelHits_MC_pT2GeV::~DebugPixelHits_MC_pT2GeV()
 {
 }
 
     void
-DebugPixelHits_TTbar::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
+DebugPixelHits_MC_pT2GeV::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 {
     using namespace edm;
     run_  = iEvent.id().run();
@@ -913,9 +913,13 @@ DebugPixelHits_TTbar::analyze(const edm::Event& iEvent, const edm::EventSetup& i
         std::cout<< tsosPXB2.isValid()<< " is valid "<<std::endl; 
         TrajectoryStateOnSurface tsosAtVtx = extrapolator.extrapolate(*tsosPXB2.freeState(),pos);
         std::cout << "Extrapolated" <<std::endl; 
+        if (tsosAtVtx.isValid()==false) continue;
         const Surface& surfAtVtx = tsosAtVtx.surface();
+        std::cout<<"surface"<<std::endl;
         LocalPoint vtxPosL = surfAtVtx.toLocal(pos);
+        std::cout<<"surface"<<std::endl;
         LocalError vtxErrL = ErrorFrameTransformer().transform(err,surfAtVtx);
+        std::cout<<"tttt"<<std::endl;
         TransientTrackingRecHit::RecHitPointer vtxhit = TRecHit2DPosConstraint::build(vtxPosL,vtxErrL,&surfAtVtx);
         
         //update 
@@ -1076,5 +1080,5 @@ DebugPixelHits_TTbar::analyze(const edm::Event& iEvent, const edm::EventSetup& i
 
 
 //define this as a plug-in
-DEFINE_FWK_MODULE(DebugPixelHits_TTbar);
+DEFINE_FWK_MODULE(DebugPixelHits_MC_pT2GeV);
 //  edm::ESHandle<MagneticField> theMF;

@@ -42,6 +42,11 @@ class VarsOfTrack {
         std::vector<int> All_hits_Px;
         std::vector<int> All_hits_Py;
         
+        
+        bool broken_cl_FLAG, corr_FLAG;
+        
+        float dz_wCorrection, dz_compare;
+        
         void set_found(bool);
         void set_detid(int);
         void set_detIsActive(int);
@@ -100,9 +105,15 @@ class VarsOfTrack {
         void set_All_hits_charge(std::vector<int>);
         void set_All_hits_Px(std::vector<int>);
         void set_All_hits_Py(std::vector<int>);
+        
+        void set_broken_Cluster_Flag(bool);
+        void set_Correction_Flag(bool);
+        void set_dz_wCorrection(float);
+        void set_dz_compare(float);
                 
         int example;        
         void set_example(int);
+        
            
           
 };
@@ -166,6 +177,10 @@ inline void VarsOfTrack::set_All_hits_charge(std::vector<int> a){for(unsigned in
 inline void VarsOfTrack::set_All_hits_Px(std::vector<int> a){for(unsigned int i=0; i<a.size(); i++){All_hits_Px.push_back(a[i]);}};
 inline void VarsOfTrack::set_All_hits_Py(std::vector<int> a){for(unsigned int i=0; i<a.size(); i++){All_hits_Py.push_back(a[i]);}};
 
+inline void VarsOfTrack::set_broken_Cluster_Flag(bool a){broken_cl_FLAG=a;}
+inline void VarsOfTrack::set_Correction_Flag(bool a){corr_FLAG=a;}
 inline void VarsOfTrack::set_example(int a){example=a;}
 
+inline void VarsOfTrack::set_dz_wCorrection(float a){dz_wCorrection=a;}
+inline void VarsOfTrack::set_dz_compare(float a){dz_compare=a;}
 #endif
