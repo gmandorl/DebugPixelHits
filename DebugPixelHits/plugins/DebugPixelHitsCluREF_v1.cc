@@ -1091,7 +1091,7 @@ void DebugPixelHitsCluREF_v1::analyze(const edm::Event& iEvent, const edm::Event
             
             for (unsigned int k = 0; k< VarsTrack_PXB2[i].All_hits_charge.size(); k++)
             {
-                std::cout<<VarsTrack_PXB2[i].All_hits_charge[k]<<" qui stampaaa carica " <<std::endl;
+                std::cout<<VarsTrack_PXB2[i].All_hits_charge[k]<<" here PRINT charge " <<std::endl;
                 All_hits_charge.push_back(VarsTrack_PXB2[i].All_hits_charge[k]);
                 All_hits_Px.push_back(VarsTrack_PXB2[i].All_hits_Px[k]);
                 All_hits_Py.push_back(VarsTrack_PXB2[i].All_hits_Py[k]);
