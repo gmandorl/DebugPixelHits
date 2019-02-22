@@ -18,7 +18,7 @@ process.MessageLogger.suppressError = cms.untracked.vstring("patTriggerFull")
 process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(10) )    
 
 from Configuration.AlCa.GlobalTag import GlobalTag
-process.GlobalTag = GlobalTag(process.GlobalTag, '92X_upgrade2017_realistic_v2', '')
+process.GlobalTag = GlobalTag(process.GlobalTag, '102X_mc2017_realistic_v5', '')
 
 
 import TrackingTools.KalmanUpdators.Chi2MeasurementEstimator_cfi 
