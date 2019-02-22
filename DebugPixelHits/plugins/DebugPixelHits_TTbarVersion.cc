@@ -668,7 +668,7 @@ DebugPixelHits_TTbarVersion::analyze(const edm::Event& iEvent, const edm::EventS
                 std::cout <<" "<<std::endl; 
                 
                 
-                for (unsigned int c=0; c< module_y; c++){
+                for (int c=0; c< module_y; c++){
                 if(abs(c-cluster_center_y_)<11) {
                     std::cout <<" has hit: " <<column1_has_hit_[c] << " status :"  << column1_status_[c]<<" "<<c<<std::endl; 
                     std::cout <<" has hit: " <<column2_has_hit_[c] << " status :"  << column2_status_[c]<<" "<<c<<std::endl; 
